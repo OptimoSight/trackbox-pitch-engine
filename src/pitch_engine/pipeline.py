@@ -1,4 +1,4 @@
-"""Field-boundary analysis, moved out of the research prototype. Behaviour is unchanged."""
+"""Field-boundary analysis. Configuration now comes from the validated ``AppConfig``."""
 
 import time
 
@@ -6,14 +6,15 @@ import cv2
 import numpy as np
 from shapely.geometry import Polygon
 
+from pitch_engine.config import AppConfig
+
 
 class FieldBoundaryAnalyzer:
-    def __init__(self, config: dict):
+    def __init__(self, config: AppConfig):
         self.config = config
-        self.sport = config.get("field_detector", {}).get("sport", "soccer")
-        self.threshold = config.get("confidence_threshold", 0.5)
 
-    def process_video(self, video_path: str):
+    def process_video(self):
+        video_path = self.config.video.path
         print(f"Starting processing for video: {video_path}")
         cap = cv2.VideoCapture(video_path)
 
@@ -47,20 +48,17 @@ class FieldBoundaryAnalyzer:
         return detected_polygons
 
     def _extract_mask(self, frame: np.ndarray) -> np.ndarray:
-        # Dummy mask generation based on green color thresholding
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-        lower_green = np.array([35, 40, 40])
-        upper_green = np.array([85, 255, 255])
-        return cv2.inRange(hsv, lower_green, upper_green)
+        lower = np.array(self.config.detector.lower_hsv)
+        upper = np.array(self.config.detector.upper_hsv)
+        return cv2.inRange(hsv, lower, upper)
 
     def _derive_polygon_from_mask(self, mask: np.ndarray):
         try:
             contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
             if contours:
                 largest = max(contours, key=cv2.contourArea)
-                if cv2.contourArea(largest) > self.config.get("field_detector", {}).get(
-                    "min_area", 500
-                ):
+                if cv2.contourArea(largest) > self.config.detector.min_area_px:
                     pts = largest.reshape(-1, 2)
                     if len(pts) >= 3:
                         return Polygon(pts)

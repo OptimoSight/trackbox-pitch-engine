@@ -1,0 +1,19 @@
+{
+  "video": {
+    "path": "synthetic_pitch_feed.mp4"
+  },
+  "detector": {
+    "type": "color_threshold",
+    "lower_hsv": [
+      35,
+      40,
+      40
+    ],
+    "upper_hsv": [
+      85,
+      255,
+      255
+    ],
+    "min_area_px": 1000
+  }
+}
