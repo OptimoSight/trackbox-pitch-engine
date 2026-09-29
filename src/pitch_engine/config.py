@@ -44,6 +44,8 @@ class ColorThresholdConfig(_Strict):
     min_area_px: int = Field(1000, ge=1)
     # Regions covering more than this share of the frame are close-ups, not a pitch boundary.
     max_area_ratio: float = Field(0.9, gt=0, le=1)
+    # Detect on a downscaled frame (accuracy vs speed); polygons are mapped back to full size.
+    scale: float = Field(1.0, gt=0, le=1)
 
     @model_validator(mode="after")
     def _bounds_are_ordered(self) -> Self:
