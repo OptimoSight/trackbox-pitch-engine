@@ -1,12 +1,11 @@
-"""Pipeline: reads the video and asks a ``FieldDetector`` for a boundary on every frame."""
+"""Pipeline: samples frames from the video and asks a ``FieldDetector`` for a boundary."""
 
-import time
-
-import cv2
-from shapely.geometry import Polygon
+from shapely.geometry import box
+from shapely.prepared import prep
 
 from pitch_engine.config import AppConfig
 from pitch_engine.detectors import FieldDetector
+from pitch_engine.video import VideoFrameSource
 
 
 class PitchPipeline:
@@ -17,32 +16,21 @@ class PitchPipeline:
     def process_video(self):
         video_path = self._config.video.path
         print(f"Starting processing for video: {video_path}")
-        cap = cv2.VideoCapture(video_path)
-
-        if not cap.isOpened():
-            print("Error: Could not open video stream.")
-            return
-
-        frame_count = 0
         detected_polygons = []
+        sampled = 0
 
-        while True:
-            ret, frame = cap.read()
-            if not ret:
-                break
+        with VideoFrameSource(video_path, self._config.sampling) as source:
+            # Invariant for the whole run: build the frame rectangle once, not once per frame.
+            frame_box = box(0, 0, source.width, source.height)
+            frame_area = frame_box.area
+            inside_frame = prep(frame_box)
+            for frame in source.frames():
+                sampled += 1
+                if frame.image is None:
+                    continue
+                poly = self._detector.detect(frame.image).polygon
+                if poly and poly.is_valid and inside_frame.covers(poly):
+                    detected_polygons.append((frame.index, poly, poly.area / frame_area))
 
-            frame_count += 1
-
-            poly = self._detector.detect(frame).polygon
-
-            if poly and poly.is_valid:
-                outer_boundary = Polygon([(0, 0), (1280, 0), (1280, 720), (0, 720)])
-                intersection_area = poly.intersection(outer_boundary).area
-                detected_polygons.append((frame_count, poly, intersection_area))
-
-            # Simulate heavy per-frame processing latency
-            time.sleep(0.005)
-
-        cap.release()
-        print(f"Processed {frame_count} frames. Found {len(detected_polygons)} boundaries.")
+        print(f"Sampled {sampled} frames. Found {len(detected_polygons)} boundaries.")
         return detected_polygons

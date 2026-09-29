@@ -15,6 +15,12 @@
       255
     ],
     "min_area_px": 1000,
-    "max_area_ratio": 0.9
+    "max_area_ratio": 0.9,
+    "scale": 1.0
+  },
+  "sampling": {
+    "sample_fps": 1.0,
+    "strategy": "seek",
+    "start_seconds": 0.0
   }
 }

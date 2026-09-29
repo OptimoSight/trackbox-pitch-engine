@@ -18,3 +18,9 @@ class ConfigError(PitchEngineError):
     """Configuration is missing, unparsable or invalid. Raised at load time, before any work."""
 
     exit_code = 2
+
+
+class VideoSourceError(PitchEngineError):
+    """The video cannot be opened or its metadata is unusable (fatal, nothing to process)."""
+
+    exit_code = 3

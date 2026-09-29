@@ -64,3 +64,19 @@ def test_small_noise_is_rejected_as_too_small(detector: ColorThresholdDetector) 
     result = detector.detect(frame)
     assert result.polygon is None
     assert result.reject_reason is RejectReason.TOO_SMALL
+
+
+def test_downscaled_detection_matches_full_resolution() -> None:
+    full = ColorThresholdDetector(ColorThresholdConfig(type="color_threshold", scale=1.0))
+    half = ColorThresholdDetector(ColorThresholdConfig(type="color_threshold", scale=0.5))
+    frame = _pitch_frame()
+    a, b = full.detect(frame).polygon, half.detect(frame).polygon
+    assert a is not None and b is not None
+    assert b.area == pytest.approx(a.area, rel=0.03)
+    assert b.bounds == pytest.approx(a.bounds, abs=4)
+
+
+@pytest.mark.parametrize("scale", [0, -1, 1.5])
+def test_scale_must_be_in_unit_interval(scale: float) -> None:
+    with pytest.raises(ValueError, match="scale"):
+        ColorThresholdConfig(type="color_threshold", scale=scale)

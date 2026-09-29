@@ -44,6 +44,8 @@ class ColorThresholdConfig(_Strict):
     min_area_px: int = Field(1000, ge=1)
     # Regions covering more than this share of the frame are close-ups, not a pitch boundary.
     max_area_ratio: float = Field(0.9, gt=0, le=1)
+    # Detect on a downscaled frame (accuracy vs speed); polygons are mapped back to full size.
+    scale: float = Field(1.0, gt=0, le=1)
 
     @model_validator(mode="after")
     def _bounds_are_ordered(self) -> Self:
@@ -52,9 +54,20 @@ class ColorThresholdConfig(_Strict):
         return self
 
 
+class SamplingConfig(_Strict):
+    """How much of the video is actually looked at."""
+
+    sample_fps: float = Field(1.0, gt=0, le=240)
+    # "seek" jumps to each sampled frame; "sequential" decodes everything and keeps every Nth.
+    strategy: Literal["seek", "sequential"] = "seek"
+    start_seconds: float = Field(0.0, ge=0)
+    duration_seconds: float | None = Field(None, gt=0)
+
+
 class AppConfig(_Strict):
     video: VideoConfig
     detector: ColorThresholdConfig
+    sampling: SamplingConfig = Field(default_factory=SamplingConfig)
 
 
 # Environment variables that override file values. They go through the same validation.
