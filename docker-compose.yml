@@ -3,12 +3,24 @@ services:
     build: ./mock_api
     ports:
       - "5001:5000"
+    healthcheck:
+      # The runner must not start reporting before the API can answer.
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://localhost:5000/api/v1/jobs/events')"
+      interval: 2s
+      timeout: 3s
+      retries: 15
 
-  # Add your own service here once you've built your solution, e.g.:
-  #
-  # runner:
-  #   build: .
-  #   depends_on:
-  #     - mock_api
-  #   environment:
-  #     - MOCK_API_URL=http://mock_api:5000
+  runner:
+    build: .
+    depends_on:
+      mock_api:
+        condition: service_healthy
+    environment:
+      - MOCK_API_URL=http://mock_api:5000
+      - JOB_ID=demo-run-001
+      - LOG_LEVEL=INFO
+    restart: "no"
