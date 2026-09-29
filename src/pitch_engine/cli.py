@@ -9,8 +9,9 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from pitch_engine.config import AppConfig, load_config
+from pitch_engine.detectors import build_detector
 from pitch_engine.errors import ConfigError
-from pitch_engine.pipeline import FieldBoundaryAnalyzer
+from pitch_engine.pipeline import PitchPipeline
 
 
 def _parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
@@ -42,6 +43,6 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if args.generate_video:
         _ensure_video(config)
-    results = FieldBoundaryAnalyzer(config).process_video()
+    results = PitchPipeline(config, build_detector(config.detector)).process_video()
     print(f"Pipeline finished with {len(results) if results else 0} results.")
     return 0
