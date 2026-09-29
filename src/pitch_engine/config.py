@@ -71,6 +71,12 @@ class LoggingConfig(_Strict):
     format: Literal["json", "text"] = "json"
 
 
+class QualityConfig(_Strict):
+    """When is a run too noisy to trust?"""
+
+    max_invalid_ratio: float = Field(0.5, ge=0, le=1)
+
+
 class AppConfig(_Strict):
     job_id: str = Field(default_factory=lambda: uuid.uuid4().hex, min_length=1)
     progress_every_samples: int = Field(10, ge=1)
@@ -78,6 +84,7 @@ class AppConfig(_Strict):
     detector: ColorThresholdConfig
     sampling: SamplingConfig = Field(default_factory=SamplingConfig)
     logging: LoggingConfig = Field(default_factory=LoggingConfig)
+    quality: QualityConfig = Field(default_factory=QualityConfig)
 
 
 # Environment variables that override file values. They go through the same validation.

@@ -28,5 +28,8 @@
   "logging": {
     "level": "INFO",
     "format": "json"
+  },
+  "quality": {
+    "max_invalid_ratio": 0.5
   }
 }
