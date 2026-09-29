@@ -7,6 +7,7 @@ offending key. Nothing is coerced silently and no bad value is replaced by a def
 from __future__ import annotations
 
 import json
+import uuid
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Annotated, Any, Literal, Self
@@ -64,15 +65,25 @@ class SamplingConfig(_Strict):
     duration_seconds: float | None = Field(None, gt=0)
 
 
+class LoggingConfig(_Strict):
+    level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
+    format: Literal["json", "text"] = "json"
+
+
 class AppConfig(_Strict):
+    job_id: str = Field(default_factory=lambda: uuid.uuid4().hex, min_length=1)
+    progress_every_samples: int = Field(10, ge=1)
     video: VideoConfig
     detector: ColorThresholdConfig
     sampling: SamplingConfig = Field(default_factory=SamplingConfig)
+    logging: LoggingConfig = Field(default_factory=LoggingConfig)
 
 
 # Environment variables that override file values. They go through the same validation.
 _ENV_OVERRIDES: dict[str, tuple[str, ...]] = {
     "VIDEO_PATH": ("video", "path"),
+    "JOB_ID": ("job_id",),
+    "LOG_LEVEL": ("logging", "level"),
 }
 
 
