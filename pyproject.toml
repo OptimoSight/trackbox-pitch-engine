@@ -1,0 +1,51 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pitch-engine"
+version = "0.2.0"
+description = "Pitch-boundary detection pipeline for match video (production rewrite of the v0.1 prototype)."
+requires-python = ">=3.12"
+dependencies = [
+    "opencv-python-headless>=4.10.0.84",
+    "numpy>=2.0.0",
+    "shapely>=2.0.6",
+    "pydantic>=2.9.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "ruff>=0.6.0",
+    "mypy>=1.11.0",
+    "types-requests>=2.32.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src", "."]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src", "tests"]
+# Vendor sample code, kept byte-for-byte as delivered.
+extend-exclude = ["synthetic_generator.py", "synthetic_field_prototype.py"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+ignore_missing_imports = true
+plugins = ["pydantic.mypy"]
+
+[[tool.mypy.overrides]]
+module = "synthetic_generator"
+ignore_errors = true
