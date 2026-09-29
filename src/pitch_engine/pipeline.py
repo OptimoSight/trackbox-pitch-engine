@@ -1,26 +1,49 @@
 """Pipeline: samples frames from the video and asks a ``FieldDetector`` for a boundary."""
 
-import logging
+from __future__ import annotations
 
-from shapely.geometry import box
+import logging
+from dataclasses import dataclass, field
+
+from shapely.geometry import Polygon, box
 from shapely.prepared import prep
 
 from pitch_engine.config import AppConfig
 from pitch_engine.detectors import FieldDetector
+from pitch_engine.errors import DetectorError
 from pitch_engine.video import VideoFrameSource
 
 log = logging.getLogger(__name__)
 
 
+@dataclass(frozen=True, slots=True)
+class Detection:
+    frame_index: int
+    polygon: Polygon
+    area_ratio: float
+
+
+@dataclass(frozen=True, slots=True)
+class RunSummary:
+    frames_sampled: int
+    unreadable_frames: int
+    detections: list[Detection] = field(default_factory=list)
+
+    @property
+    def valid_detections(self) -> int:
+        return len(self.detections)
+
+
 class PitchPipeline:
-    def __init__(self, config: AppConfig, detector: FieldDetector):
+    def __init__(self, config: AppConfig, detector: FieldDetector) -> None:
         self._config = config
         self._detector = detector
 
-    def process_video(self):
+    def run(self) -> RunSummary:
         video_path = self._config.video.path
-        detected_polygons = []
+        detections: list[Detection] = []
         sampled = 0
+        unreadable = 0
 
         with VideoFrameSource(video_path, self._config.sampling) as source:
             log.info(
@@ -33,30 +56,38 @@ class PitchPipeline:
                     "sample_strategy": source.strategy,
                 },
             )
-            # Invariant for the whole run: build the frame rectangle once, not once per frame.
-            frame_box = box(0, 0, source.width, source.height)
-            frame_area = frame_box.area
-            inside_frame = prep(frame_box)
+            frame_area = source.width * source.height
+            inside_frame = prep(box(0, 0, source.width, source.height))
+
             for frame in source.frames():
                 sampled += 1
                 if frame.image is None:
+                    unreadable += 1
                     log.warning("frame_unreadable", extra={"frame_index": frame.index})
                     continue
-                poly = self._detector.detect(frame.image).polygon
+                try:
+                    poly = self._detector.detect(frame.image).polygon
+                except Exception as exc:
+                    # A detector that raises is broken, not "seeing nothing": stop the run.
+                    raise DetectorError(f"detector failed on frame {frame.index}: {exc}") from exc
                 if poly and poly.is_valid and inside_frame.covers(poly):
-                    detected_polygons.append((frame.index, poly, poly.area / frame_area))
+                    detections.append(Detection(frame.index, poly, poly.area / frame_area))
                 if sampled % self._config.progress_every_samples == 0:
                     log.info(
                         "progress",
                         extra={
                             "frames_sampled": sampled,
-                            "boundaries_found": len(detected_polygons),
+                            "boundaries_found": len(detections),
                             "percent_complete": source.percent_complete(frame.index),
                         },
                     )
 
         log.info(
             "run_finished",
-            extra={"frames_sampled": sampled, "boundaries_found": len(detected_polygons)},
+            extra={
+                "frames_sampled": sampled,
+                "unreadable_frames": unreadable,
+                "boundaries_found": len(detections),
+            },
         )
-        return detected_polygons
+        return RunSummary(sampled, unreadable, detections)

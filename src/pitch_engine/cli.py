@@ -1,17 +1,23 @@
-"""Command-line interface."""
+"""Command-line interface.
+
+Exit codes: 0 success; 1 unexpected error; 2 bad configuration; 3 video source problem;
+4 feed too noisy to trust; 130 interrupted.
+"""
 
 from __future__ import annotations
 
 import argparse
 import logging
 import os
+import signal
 import sys
 from collections.abc import Sequence
 from pathlib import Path
+from types import FrameType
 
 from pitch_engine.config import AppConfig, load_config
 from pitch_engine.detectors import build_detector
-from pitch_engine.errors import ConfigError
+from pitch_engine.errors import ConfigError, PitchEngineError
 from pitch_engine.logging_setup import configure_logging
 from pitch_engine.pipeline import PitchPipeline
 
@@ -34,7 +40,12 @@ def _ensure_video(config: AppConfig) -> None:
         return
     from synthetic_generator import generate_synthetic_video
 
+    log.info("generating_synthetic_video", extra={"video_path": config.video.path})
     generate_synthetic_video(config.video.path)
+
+
+def _on_sigterm(signum: int, frame: FrameType | None) -> None:
+    raise KeyboardInterrupt
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -42,12 +53,24 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         config = load_config(args.config, os.environ)
     except ConfigError as exc:
+        # Logging is not configured yet (it depends on the config), so use stderr.
         print(f"configuration error: {exc}", file=sys.stderr)
         return exc.exit_code
 
     configure_logging(config.logging, config.job_id)
-    if args.generate_video:
-        _ensure_video(config)
-    results = PitchPipeline(config, build_detector(config.detector)).process_video()
-    log.info("pipeline_finished", extra={"boundaries": len(results) if results else 0})
+    signal.signal(signal.SIGTERM, _on_sigterm)
+    try:
+        if args.generate_video:
+            _ensure_video(config)
+        summary = PitchPipeline(config, build_detector(config.detector)).run()
+    except PitchEngineError as exc:
+        log.error("run_failed", extra={"error_type": type(exc).__name__, "error": str(exc)})
+        return exc.exit_code
+    except KeyboardInterrupt:
+        log.error("run_interrupted")
+        return 130
+    except Exception:
+        log.exception("run_crashed")
+        return 1
+    log.info("pipeline_finished", extra={"valid_detections": summary.valid_detections})
     return 0

@@ -63,6 +63,7 @@ class SamplingConfig(_Strict):
     strategy: Literal["seek", "sequential"] = "seek"
     start_seconds: float = Field(0.0, ge=0)
     duration_seconds: float | None = Field(None, gt=0)
+    max_consecutive_read_failures: int = Field(5, ge=1)
 
 
 class LoggingConfig(_Strict):
