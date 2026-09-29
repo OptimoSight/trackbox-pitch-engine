@@ -42,3 +42,7 @@ class FeedQualityError(PitchEngineError):
     """Too many sampled frames were unusable for the aggregate result to be trusted."""
 
     exit_code = 4
+
+
+# Pipeline succeeded but the final report could not be delivered to the platform.
+EXIT_REPORT_UNDELIVERED = 5
