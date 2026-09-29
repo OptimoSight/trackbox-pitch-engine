@@ -11,12 +11,13 @@ from pitch_engine.detectors.color_threshold import ColorThresholdDetector
 from pitch_engine.errors import DetectorError, FeedQualityError, VideoSourceError
 from pitch_engine.models import DetectionResult, RejectReason, RunSummary
 from pitch_engine.pipeline import PitchPipeline
+from pitch_engine.reporting import NullReporter
 
 MakeConfig = Callable[..., AppConfig]
 
 
 def _run(config: AppConfig, detector: object) -> RunSummary:
-    return PitchPipeline(config, detector).run()  # type: ignore[arg-type]
+    return PitchPipeline(config, detector, NullReporter()).run().summary  # type: ignore[arg-type]
 
 
 class _Never:

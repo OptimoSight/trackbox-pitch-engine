@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import time
 from collections import Counter
+from dataclasses import dataclass
 
 from shapely.geometry import box
 from shapely.prepared import PreparedGeometry, prep
@@ -14,21 +15,45 @@ from pitch_engine.config import AppConfig
 from pitch_engine.detectors import FieldDetector
 from pitch_engine.errors import DetectorError, FeedQualityError, VideoSourceError
 from pitch_engine.models import RejectReason, RunSummary
+from pitch_engine.payloads import EventReport, ProgressReport
+from pitch_engine.reporting import Reporter
 from pitch_engine.validation import validate_polygon
 from pitch_engine.video import SampledFrame, VideoFrameSource
 
 log = logging.getLogger(__name__)
 
 
+@dataclass(frozen=True, slots=True)
+class RunOutcome:
+    summary: RunSummary
+    final_report_delivered: bool
+
+
 class PitchPipeline:
     """Runs one job: video in, validated boundary metrics out."""
 
-    def __init__(self, config: AppConfig, detector: FieldDetector) -> None:
+    def __init__(self, config: AppConfig, detector: FieldDetector, reporter: Reporter) -> None:
         self._config = config
         self._detector = detector
+        self._reporter = reporter
 
-    def run(self) -> RunSummary:
-        return self._process()
+    def run(self) -> RunOutcome:
+        """Run the job and tell the platform how it went.
+
+        The failure report is sent for *any* exception (including a SIGTERM turned into
+        ``KeyboardInterrupt``) and the original exception is always re-raised: reporting
+        can add information but can never hide a failure.
+        """
+        job_id = self._config.job_id
+        self._reporter.send_event(EventReport.started(job_id))
+        try:
+            summary = self._process()
+        except (Exception, KeyboardInterrupt) as exc:
+            if not self._reporter.send_event(EventReport.failed(job_id, exc)):
+                log.error("failure_report_undelivered")
+            raise
+        delivered = self._reporter.send_event(EventReport.completed(job_id, summary))
+        return RunOutcome(summary, delivered)
 
     def _process(self) -> RunSummary:
         cfg = self._config
@@ -70,6 +95,15 @@ class PitchPipeline:
                             "rejected_frames": sum(rejected.values()),
                             "percent_complete": percent,
                         },
+                    )
+                    self._reporter.send_progress(
+                        ProgressReport(
+                            job_id=cfg.job_id,
+                            frames_sampled=sampled,
+                            valid_detections=aggregator.count,
+                            rejected_frames=sum(rejected.values()),
+                            percent_complete=percent,
+                        )
                     )
             summary_source = source
 
