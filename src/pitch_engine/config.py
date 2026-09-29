@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Annotated, Any, Literal, Self
 
 from pydantic import (
+    AnyHttpUrl,
     BaseModel,
     ConfigDict,
     Field,
@@ -77,6 +78,22 @@ class QualityConfig(_Strict):
     max_invalid_ratio: float = Field(0.5, ge=0, le=1)
 
 
+class ReportingConfig(_Strict):
+    enabled: bool = True
+    api_url: AnyHttpUrl | None = None
+    timeout_seconds: float = Field(5.0, gt=0, le=60)
+    max_retries: int = Field(3, ge=0, le=10)
+    backoff_seconds: float = Field(0.5, ge=0, le=30)
+    # After this many consecutive failures, stop sending progress (final events still retried).
+    max_consecutive_progress_failures: int = Field(3, ge=1)
+
+    @model_validator(mode="after")
+    def _url_required_when_enabled(self) -> Self:
+        if self.enabled and self.api_url is None:
+            raise ValueError("api_url is required when reporting is enabled")
+        return self
+
+
 class AppConfig(_Strict):
     job_id: str = Field(default_factory=lambda: uuid.uuid4().hex, min_length=1)
     progress_every_samples: int = Field(10, ge=1)
@@ -85,6 +102,7 @@ class AppConfig(_Strict):
     sampling: SamplingConfig = Field(default_factory=SamplingConfig)
     logging: LoggingConfig = Field(default_factory=LoggingConfig)
     quality: QualityConfig = Field(default_factory=QualityConfig)
+    reporting: ReportingConfig
 
 
 # Environment variables that override file values. They go through the same validation.
@@ -92,6 +110,7 @@ _ENV_OVERRIDES: dict[str, tuple[str, ...]] = {
     "VIDEO_PATH": ("video", "path"),
     "JOB_ID": ("job_id",),
     "LOG_LEVEL": ("logging", "level"),
+    "MOCK_API_URL": ("reporting", "api_url"),
 }
 
 

@@ -26,6 +26,7 @@ def config_dict(video_file: str, **overrides: Any) -> dict[str, Any]:
     """The shipped default config pointed at ``video_file``, plus per-section overrides."""
     data: dict[str, Any] = copy.deepcopy(json.loads(DEFAULT.read_text()))
     data["video"]["path"] = video_file
+    data["reporting"]["enabled"] = False
     for section, values in overrides.items():
         if isinstance(values, dict):
             data.setdefault(section, {}).update(values)
