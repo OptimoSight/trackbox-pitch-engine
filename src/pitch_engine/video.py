@@ -22,7 +22,7 @@ import cv2
 import numpy as np
 
 from pitch_engine.config import SamplingConfig
-from pitch_engine.errors import VideoSourceError
+from pitch_engine.errors import StreamReadError, VideoSourceError
 
 log = logging.getLogger(__name__)
 
@@ -120,21 +120,33 @@ class VideoFrameSource:
 
     def _seek_frames(self, cap: cv2.VideoCapture) -> Iterator[SampledFrame]:
         assert self.end_frame is not None  # guaranteed by _read_metadata
+        failures = 0
         for index in range(self.start_frame, self.end_frame, self.step):
             cap.set(cv2.CAP_PROP_POS_FRAMES, index)
             ok, image = cap.read()
+            failures = 0 if ok else failures + 1
+            if failures >= self._sampling.max_consecutive_read_failures:
+                raise StreamReadError(
+                    f"{failures} consecutive frames failed to decode (last index {index})"
+                )
             yield self._frame(index, ok, image)
 
     def _sequential_frames(self, cap: cv2.VideoCapture) -> Iterator[SampledFrame]:
         if self.start_frame:
             cap.set(cv2.CAP_PROP_POS_FRAMES, self.start_frame)
         index = self.start_frame
+        failures = 0
         while self.end_frame is None or index < self.end_frame:
             if not cap.grab():
                 self.truncated = self.end_frame is not None and index < self.end_frame
                 return
             if (index - self.start_frame) % self.step == 0:
                 ok, image = cap.retrieve()
+                failures = 0 if ok else failures + 1
+                if failures >= self._sampling.max_consecutive_read_failures:
+                    raise StreamReadError(
+                        f"{failures} consecutive frames failed to decode (last index {index})"
+                    )
                 yield self._frame(index, ok, image)
             index += 1
 

@@ -97,3 +97,13 @@ def test_top_level_must_be_an_object(tmp_path: Path) -> None:
 def test_env_override_is_applied() -> None:
     config = load_config(DEFAULT, {"VIDEO_PATH": "/data/match.mp4"})
     assert config.video.path == "/data/match.mp4"
+
+
+def test_env_override_is_validated_too() -> None:
+    with pytest.raises(ConfigError, match=r"logging\.level"):
+        load_config(DEFAULT, {"LOG_LEVEL": "LOUD"})
+
+
+def test_job_id_is_generated_when_absent_and_overridable() -> None:
+    assert len(load_config(DEFAULT, {}).job_id) == 32
+    assert load_config(DEFAULT, {"JOB_ID": "abc"}).job_id == "abc"

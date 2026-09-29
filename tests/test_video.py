@@ -93,3 +93,48 @@ def test_start_beyond_the_end_is_rejected_up_front(make_config: MakeConfig) -> N
 def test_sampling_config_rejects_bad_values(bad: dict[str, Any]) -> None:
     with pytest.raises(ValidationError):
         SamplingConfig(**bad)
+
+
+class _BrokenCapture:
+    """A capture whose decoder fails on every frame after the metadata is read."""
+
+    def __init__(self, *_: Any) -> None:
+        pass
+
+    def isOpened(self) -> bool:  # noqa: N802 - mirrors cv2 API
+        return True
+
+    def get(self, prop: int) -> float:
+        import cv2
+
+        return {
+            cv2.CAP_PROP_FPS: 30.0,
+            cv2.CAP_PROP_FRAME_WIDTH: 64.0,
+            cv2.CAP_PROP_FRAME_HEIGHT: 48.0,
+            cv2.CAP_PROP_FRAME_COUNT: 3000.0,
+        }[prop]
+
+    def set(self, *_: Any) -> bool:
+        return True
+
+    def read(self) -> tuple[bool, None]:
+        return False, None
+
+    def release(self) -> None:
+        pass
+
+
+def test_persistent_decode_failure_stops_the_run(
+    make_config: MakeConfig, monkeypatch: pytest.MonkeyPatch, video_path: str
+) -> None:
+    import cv2
+
+    from pitch_engine.errors import StreamReadError
+
+    monkeypatch.setattr(cv2, "VideoCapture", _BrokenCapture)
+    config = make_config(sampling={"max_consecutive_read_failures": 3})
+    with (
+        VideoFrameSource(video_path, config.sampling) as source,
+        pytest.raises(StreamReadError, match="3 consecutive"),
+    ):
+        list(source.frames())
