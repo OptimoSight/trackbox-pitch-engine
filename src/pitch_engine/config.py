@@ -42,6 +42,8 @@ class ColorThresholdConfig(_Strict):
     lower_hsv: tuple[Hue, Channel, Channel] = (35, 40, 40)
     upper_hsv: tuple[Hue, Channel, Channel] = (85, 255, 255)
     min_area_px: int = Field(1000, ge=1)
+    # Regions covering more than this share of the frame are close-ups, not a pitch boundary.
+    max_area_ratio: float = Field(0.9, gt=0, le=1)
 
     @model_validator(mode="after")
     def _bounds_are_ordered(self) -> Self:
