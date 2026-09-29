@@ -52,9 +52,20 @@ class ColorThresholdConfig(_Strict):
         return self
 
 
+class SamplingConfig(_Strict):
+    """How much of the video is actually looked at."""
+
+    sample_fps: float = Field(1.0, gt=0, le=240)
+    # "seek" jumps to each sampled frame; "sequential" decodes everything and keeps every Nth.
+    strategy: Literal["seek", "sequential"] = "seek"
+    start_seconds: float = Field(0.0, ge=0)
+    duration_seconds: float | None = Field(None, gt=0)
+
+
 class AppConfig(_Strict):
     video: VideoConfig
     detector: ColorThresholdConfig
+    sampling: SamplingConfig = Field(default_factory=SamplingConfig)
 
 
 # Environment variables that override file values. They go through the same validation.
