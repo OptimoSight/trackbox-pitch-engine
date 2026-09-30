@@ -150,8 +150,14 @@ the solution this way. I applied each step to my repository, ran the checks, mad
 opened and merged the pull requests, and pushed. I am responsible for what is submitted here and
 I can explain it. I did not write the code line by line myself. I run docker and test it.
 
-**What was not verified by the assistant.** Claude's environment had no Docker, so the
-Dockerfile, the compose changes and the CI Docker job were reviewed by reading only. 
+**What the assistant could not verify, and what I checked myself.** Claude's environment had no
+Docker, so it could only review the Dockerfile, the compose changes and the CI Docker job by
+reading them. I ran `docker compose up --build --abort-on-container-exit` on my machine. The
+first run failed because `requirements.txt` still listed the full `opencv-python`, which needs
+GUI system libraries the slim image does not have (`libxcb.so.1` was missing). I switched it to
+`opencv-python-headless`, and the second run finished with exit code 0 and delivered the
+`started`, progress and `completed` reports to the mock API. The CI Docker job is verified only
+once it has run on GitHub.
 
 
 The commit history therefore reflects the order in which I applied and reviewed the work, not
